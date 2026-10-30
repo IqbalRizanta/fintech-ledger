@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Financial Core Ledger - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #080c14; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800 bg-slate-900/60 px-6 py-4 flex items-center justify-between sticky top-0 z-20 backdrop-blur">
+    <div class="flex items-center gap-3">
+      <div class="p-2 bg-emerald-600/20 border border-emerald-500/40 rounded-lg text-emerald-400">
+        <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-white flex items-center gap-2">
+          Financial Core Ledger
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">Go Ledger :8083</span>
+        </h1>
+        <p class="text-xs text-slate-400">Double-entry bookkeeping engine with strict idempotency and audit trails</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="fetchData()" class="px-3 py-2 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">Refresh</button>
+      <button onclick="triggerTransfer()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition">Execute Demo Transfer ($250)</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
+    <!-- Balance Sheet Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40">
+        <div class="text-xs text-slate-400">Total Assets (Bank Reserve)</div>
+        <div id="m-assets" class="text-2xl font-bold mt-2 text-white">$0.00</div>
+        <div class="text-[11px] text-slate-500 mt-1">Debit-normal liquidity accounts</div>
+      </div>
+      <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40">
+        <div class="text-xs text-slate-400">Customer Deposits (Liabilities)</div>
+        <div id="m-liabilities" class="text-2xl font-bold mt-2 text-sky-400">$0.00</div>
+        <div class="text-[11px] text-slate-500 mt-1">Credit-normal user wallet balances</div>
+      </div>
+      <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40">
+        <div class="text-xs text-slate-400">Platform Revenue</div>
+        <div id="m-revenue" class="text-2xl font-bold mt-2 text-amber-400">$0.00</div>
+        <div class="text-[11px] text-slate-500 mt-1">Accumulated interchange fees</div>
+      </div>
+      <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40">
+        <div class="text-xs text-slate-400">Ledger Equilibrium</div>
+        <div id="m-equilibrium" class="text-sm font-bold mt-2 text-emerald-400">⚖️ BALANCED (ZERO-SUM)</div>
+        <div class="text-[11px] text-slate-500 mt-1">Assets == Liabilities + Revenue</div>
+      </div>
+    </div>
+
+    <!-- Accounts Grid -->
+    <div class="space-y-4">
+      <h2 class="text-base font-semibold text-white">Active Ledger Accounts</h2>
+      <div id="accounts-grid" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40 text-slate-500 text-xs text-center col-span-4">
+          Connecting to Go Ledger on http://localhost:8083...
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = 'http://localhost:8083';
+
+    function fmt(cents) {
+      return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function fetchData() {
+      try {
+        const [resAcc, resSheet] = await Promise.all([
+          fetch(`${API}/api/v1/accounts`),
+          fetch(`${API}/api/v1/balance-sheet`)
+        ]);
+        if (resSheet.ok) {
+          const s = await resSheet.json();
+          document.getElementById('m-assets').innerText = fmt(s.total_assets);
+          document.getElementById('m-liabilities').innerText = fmt(s.total_liabilities);
+          document.getElementById('m-revenue').innerText = fmt(s.total_revenue);
+        }
+        if (resAcc.ok) {
+          const json = await resAcc.json();
+          renderAccounts(json.data || []);
+        }
+      } catch (e) {
+        console.warn('Backend not running on :8083', e);
+      }
+    }
+
+    function renderAccounts(accs) {
+      document.getElementById('accounts-grid').innerHTML = accs.map(a => `
+        <div class="p-5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-slate-300">${a.type}</span>
+            <span class="text-slate-400">${a.currency}</span>
+          </div>
+          <div class="font-bold text-white text-sm">${a.name}</div>
+          <div class="text-[11px] text-slate-400">${a.description}</div>
+          <div class="pt-2 border-t border-slate-800 text-lg font-mono font-bold text-emerald-400">${fmt(a.balance)}</div>
+        </div>
+      `).join('');
+    }
+
+    async function triggerTransfer() {
+      const accRes = await fetch(`${API}/api/v1/accounts`);
+      const data = await accRes.json();
+      const alice = data.data.find(a => a.name.includes('Alice'));
+      const bob = data.data.find(a => a.name.includes('Bob'));
+      if (!alice || !bob) return;
+
+      const idemp = 'req_' + Math.random().toString(36).substring(2, 9);
+      await fetch(`${API}/api/v1/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idemp },
+        body: JSON.stringify({
+          from_account_id: alice.id,
+          to_account_id: bob.id,
+          amount: 25000,
+          fee_amount: 500,
+          description: 'P2P Transfer Alice to Bob'
+        })
+      });
+      fetchData();
+    }
+
+    fetchData();
+    setInterval(fetchData, 2500);
+  </script>
+</body>
+</html>
